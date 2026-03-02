@@ -50,17 +50,37 @@ let adminGroupChart = null;
 let adminOrgPieChart = null;
 let adminDemandChart = null;
 
+
 // ============================================
-// GOOGLE SHEETS API LAYER
+// GOOGLE SHEETS API LAYER (JSONP - รองรับ Safari/Chrome/Firefox)
 // ============================================
 const SheetsAPI = {
+  _jsonp(params) {
+    return new Promise((resolve, reject) => {
+      const cbName = '_cb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+      const url = API_URL + '?callback=' + cbName + '&' + params;
+      const script = document.createElement('script');
+      let done = false;
+      window[cbName] = function(data) {
+        done = true;
+        resolve(data);
+        delete window[cbName];
+        if (script.parentNode) script.parentNode.removeChild(script);
+      };
+      script.src = url;
+      script.onerror = function() {
+        if (!done) { done = true; reject(new Error('Network error')); delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
+      };
+      setTimeout(function() {
+        if (!done) { done = true; reject(new Error('Request timeout')); delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
+      }, 30000);
+      document.head.appendChild(script);
+    });
+  },
   async getAll() {
     try {
-      const response = await fetch(`${API_URL}?action=getAll`);
-      const result = await response.json();
-      if (result.success) {
-        return result.data;
-      }
+      const result = await this._jsonp('action=getAll');
+      if (result.success) return result.data;
       console.error('getAll error:', result.error);
       return [];
     } catch (error) {
@@ -69,41 +89,27 @@ const SheetsAPI = {
       return [];
     }
   },
-
   async create(record) {
     try {
-      const response = await fetch(`${API_URL}?action=create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(record)
-      });
-      const result = await response.json();
+      const result = await this._jsonp('action=create&data=' + encodeURIComponent(JSON.stringify(record)));
       return { isOk: result.success, id: result.id, error: result.error };
     } catch (error) {
       console.error('Network error (create):', error);
       return { isOk: false, error: error.toString() };
     }
   },
-
   async update(record) {
     try {
-      const response = await fetch(`${API_URL}?action=update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(record)
-      });
-      const result = await response.json();
+      const result = await this._jsonp('action=update&data=' + encodeURIComponent(JSON.stringify(record)));
       return { isOk: result.success, error: result.error };
     } catch (error) {
       console.error('Network error (update):', error);
       return { isOk: false, error: error.toString() };
     }
   },
-
   async delete(id) {
     try {
-      const response = await fetch(`${API_URL}?action=delete&id=${encodeURIComponent(id)}`);
-      const result = await response.json();
+      const result = await this._jsonp('action=delete&id=' + encodeURIComponent(id));
       return { isOk: result.success, error: result.error };
     } catch (error) {
       console.error('Network error (delete):', error);
