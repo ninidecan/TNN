@@ -1,7 +1,7 @@
 // ============================================
 // CONFIG - ใส่ URL ของ Google Apps Script Web App ตรงนี้
 // ============================================
-const API_URL = 'https://script.google.com/macros/s/AKfycbwkl6sTnOB0XFxKERq3OPjLMTfc1k18SEfMBqk_9W9ehC5JMfGj-9sHTpLSPqd-oqSV/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxPGBcV9iFKwZT603M4Wkaa3lDDT7QCpZQ5tnPBLaKjDuyCXqRW-8LjTXPJDdV3-wos/exec';
 
 const GROUPS = [
   { id: 'G1', name: 'การพยาบาลผู้ป่วยหนัก', threshold: 60 },
