@@ -1,5 +1,5 @@
 // ============================================
-// CONFIG - ใส่ URL ของ Google Apps Script Web App ตรงนี้
+// CONFIG
 // ============================================
 const API_URL = 'https://script.google.com/macros/s/AKfycbxPGBcV9iFKwZT603M4Wkaa3lDDT7QCpZQ5tnPBLaKjDuyCXqRW-8LjTXPJDdV3-wos/exec';
 
@@ -42,81 +42,100 @@ let wardData = {
   potential: { fourMonth: [], short: [], graduate: [], practical: [] },
   needs: { fourMonth: [], short: [], graduate: [], practical: [] }
 };
-
-// Chart instances
 let groupBarChart = null;
 let groupPieChart = null;
 let adminGroupChart = null;
 let adminOrgPieChart = null;
 let adminDemandChart = null;
 
-
 // ============================================
-// GOOGLE SHEETS API LAYER (JSONP - รองรับ Safari/Chrome/Firefox)
+// GOOGLE SHEETS API (JSONP - Safari + Chrome + Firefox)
 // ============================================
 const SheetsAPI = {
-  _jsonp(params) {
-    return new Promise((resolve, reject) => {
-      const cbName = '_cb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-      const url = API_URL + '?callback=' + cbName + '&' + params;
-      const script = document.createElement('script');
-      let done = false;
+  // JSONP ใช้ <script> tag หลีกเลี่ยง CORS ได้ 100%
+  _jsonp(queryString) {
+    return new Promise(function(resolve, reject) {
+      var cbName = '_cb' + Date.now() + Math.floor(Math.random() * 100000);
+      var done = false;
+      var script = document.createElement('script');
+
+      // callback function ที่ Apps Script จะเรียก
       window[cbName] = function(data) {
+        if (done) return;
         done = true;
         resolve(data);
-        delete window[cbName];
-        if (script.parentNode) script.parentNode.removeChild(script);
+        cleanup();
       };
-      script.src = url;
+
+      function cleanup() {
+        try { delete window[cbName]; } catch(e) { window[cbName] = undefined; }
+        if (script && script.parentNode) script.parentNode.removeChild(script);
+      }
+
       script.onerror = function() {
-        if (!done) { done = true; reject(new Error('Network error')); delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
+        if (done) return;
+        done = true;
+        reject(new Error('Script load error'));
+        cleanup();
       };
+
+      // Timeout 30 วินาที
       setTimeout(function() {
-        if (!done) { done = true; reject(new Error('Request timeout')); delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
+        if (done) return;
+        done = true;
+        reject(new Error('Timeout'));
+        cleanup();
       }, 30000);
-      document.head.appendChild(script);
+
+      script.src = API_URL + '?callback=' + cbName + '&' + queryString;
+      document.getElementsByTagName('head')[0].appendChild(script);
     });
   },
+
   async getAll() {
     try {
-      const result = await this._jsonp('action=getAll');
-      if (result.success) return result.data;
-      console.error('getAll error:', result.error);
-      return [];
+      var result = await this._jsonp('action=getAll');
+      return (result && result.success) ? result.data : [];
     } catch (error) {
-      console.error('Network error (getAll):', error);
+      console.error('getAll error:', error);
       showToast('ไม่สามารถเชื่อมต่อ Google Sheets ได้', 'error');
       return [];
     }
   },
+
   async create(record) {
     try {
-      const result = await this._jsonp('action=create&data=' + encodeURIComponent(JSON.stringify(record)));
-      return { isOk: result.success, id: result.id, error: result.error };
+      var jsonStr = JSON.stringify(record);
+      var result = await this._jsonp('action=create&data=' + encodeURIComponent(jsonStr));
+      return { isOk: result && result.success, id: result ? result.id : null };
     } catch (error) {
-      console.error('Network error (create):', error);
+      console.error('create error:', error);
       return { isOk: false, error: error.toString() };
     }
   },
+
   async update(record) {
     try {
-      const result = await this._jsonp('action=update&data=' + encodeURIComponent(JSON.stringify(record)));
-      return { isOk: result.success, error: result.error };
+      var jsonStr = JSON.stringify(record);
+      var result = await this._jsonp('action=update&data=' + encodeURIComponent(jsonStr));
+      return { isOk: result && result.success };
     } catch (error) {
-      console.error('Network error (update):', error);
+      console.error('update error:', error);
       return { isOk: false, error: error.toString() };
     }
   },
+
   async delete(id) {
     try {
-      const result = await this._jsonp('action=delete&id=' + encodeURIComponent(id));
-      return { isOk: result.success, error: result.error };
+      var result = await this._jsonp('action=delete&id=' + encodeURIComponent(id));
+      return { isOk: result && result.success };
     } catch (error) {
-      console.error('Network error (delete):', error);
+      console.error('delete error:', error);
       return { isOk: false, error: error.toString() };
     }
   }
 };
+
 
 // ============================================
 // APP INITIALIZATION
